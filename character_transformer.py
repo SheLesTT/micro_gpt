@@ -2,19 +2,20 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+load_model =True
 # hyperparameters
 
 batch_size = 64
-block_size = 256
+block_size = 8
 learning_rate = 3e-4
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-eval_interval = 500
-max_iters = 10001
-n_embd = 384
-n_head = 6
-n_layer =6
+eval_interval = 100
+max_iters = 300
+n_embd = 36
+n_head = 4
+n_layer = 1
 dropout = 0.2
 
 torch.manual_seed(1337)
@@ -75,6 +76,7 @@ def save_checkpoint(state, filename='my_checkpoint.pth.tar'):
 
 def load_checkpoint(checkpoint):
     print("loading checkpoint")
+    checkpoint = torch.load(checkpoint)
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
 
@@ -166,13 +168,14 @@ class Block(nn.Module):
         self.ln2 = nn.LayerNorm(n_embd)
 
     def forward(self, x):
+        "x + is for residual connections"
         x = x + self.sa(self.ln1(x))
         x = x + self.ffwd(self.ln2(x))
         return x
 
 
 # The model
-class BigramLanguageModel(nn.Module):
+class MiniGpt(nn.Module):
     def __init__(self):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
@@ -224,13 +227,14 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
-model = BigramLanguageModel()
-
+model = MiniGpt()
 m = model.to(device)
 
 # Traning
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+if load_model:
+    load_checkpoint('my_checkpoint.pth.tar')
 for step in range(max_iters):
     # once in a eval_interval steps evaluate train and test loss
     if step % eval_interval == 0:
@@ -250,3 +254,9 @@ estimate_loss()
 # Generation from the model
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
 print(decode(m.generate(context, max_new_tokens=100)[0].tolist()))
+
+
+
+
+checkpoint = {'state_dict' : m.state_dict(), 'optimizer': optimizer.state_dict(),}
+save_checkpoint(checkpoint)
